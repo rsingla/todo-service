@@ -2,67 +2,46 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rsingla/todo-service/model"
+	"github.com/rsingla/todo-service/mydb"
 )
 
-var todoList []model.Todo
+var todoDB mydb.TodoDBInterface
 
 func init() {
-	todoList = []model.Todo{
-		{
-			ID:          "1",
-			Title:       "Go to the grocery store",
-			Description: "Buy milk, eggs, bread, and Diet Coke",
-			Completed:   false,
-			CreatedDate: "2021-01-01",
-			UpdatedDate: "2021-01-01",
-		},
-		{
-			ID:          "2",
-			Title:       "Go to the hardware store",
-			Description: "Buy a hammer",
-			Completed:   false,
-			CreatedDate: "2023-05-10",
-			UpdatedDate: "2021-05-10",
-		},
-		{
-			ID:          "3",
-			Title:       "Go to the liquor store",
-			Description: "Buy a bottle of wine",
-			Completed:   false,
-			CreatedDate: "2023-05-10",
-			UpdatedDate: "2021-05-10",
-		},
-	}
+	dbConn := mydb.Connect()
+	todoDB = mydb.NewTodoDBInterface(dbConn)
 }
 
 // GetTodos returns a list of all todos
 func GetTodos(c *gin.Context) {
-
-	c.JSON(http.StatusOK, gin.H{
-		"body": todoList,
-	})
+	todoList, err := todoDB.FindAll()
+	c.JSON(http.StatusOK, todoList)
 }
 
 // GetTodo returns a single todo
 func GetTodo(c *gin.Context) {
 	id := c.Param("id")
 
-	for _, todo := range todoList {
-		if todo.ID == id {
-			c.JSON(http.StatusOK, gin.H{
-				"body": todo,
-			})
-			return
-		}
+	todoEntity, err := todoDB.FindByID(id)
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"message": "Todo not found",
+		})
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{
-		"message": "Todo not found",
+	todo := model.ConvertToTodoEntity(*todoEntity)
+
+	c.JSON(http.StatusOK, gin.H{
+		"body": todo,
 	})
+	return
+
 }
 
 // CreateTodo creates a new todo
@@ -85,12 +64,15 @@ func CreateTodo(c *gin.Context) {
 		return
 	}
 
-	if todo.CreatedDate == "" {
-		todo.CreatedDate = time.Now().Format("2006-01-02")
+	idVal := len(todoList) + 1
+	todo.ID = strconv.Itoa(idVal)
+
+	if todo.DateCreated == (time.Time{}) {
+		todo.DateCreated = time.Now().UTC()
 	}
 
-	if todo.UpdatedDate == "" {
-		todo.UpdatedDate = time.Now().Format("2006-01-02")
+	if todo.DateUpdated == (time.Time{}) {
+		todo.DateUpdated = time.Now().UTC()
 	}
 
 	todoList = append(todoList, todo)
@@ -115,8 +97,18 @@ func UpdateTodo(c *gin.Context) {
 		return
 	}
 
+	if todo.ID != id {
+		todo.ID = id
+	}
+
+	if todo.DateUpdated == (time.Time{}) {
+		todo.DateUpdated = time.Now().UTC()
+	}
+
 	for index, item := range todoList {
 		if item.ID == id {
+			todoDB := todoList[index]
+			todo.DateCreated = todoDB.DateCreated
 			todoList[index] = todo
 			c.JSON(http.StatusOK, gin.H{
 				"body": todo,

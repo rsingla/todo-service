@@ -2,12 +2,17 @@ package main
 
 import (
 	"net/http"
-	"simplebank/todo-service/api"
+
+	"github.com/rsingla/todo-service/api"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/rsingla/todo-service/mydb"
 )
 
 func main() {
+
+	mydb.Connect()
 
 	const PORT = "8081"
 
@@ -23,6 +28,7 @@ func main() {
 	r.DELETE("/todo/:id", api.DeleteTodo)
 
 	r.Run(":" + PORT)
+
 }
 
 func ping(c *gin.Context) {
